@@ -14,9 +14,9 @@ Ou pode "adicionar/remover" um usuário já existente.
 Parâmetros:
 
         --help|-h       Menú de ajuda.
-	--list|-l	Lista usuários associados ao SAMBA.
-	--remove|-rm	Remove um usuário específico do SAMBA e/ou Sistema.
-        --ssh-on        para que o usuário criado tenha suporte para uso com o ssh.
+        --list|-l	Lista usuários associados ao SAMBA.
+        --remove|-rm	Remove um usuário específico do SAMBA e/ou Sistema.
+        --ssh        para que o usuário criado tenha suporte para uso com o ssh.
                         Se omitido, será criado um usuário sem suporte ao ssh
 Exemplos:
 
@@ -26,7 +26,7 @@ Exemplos:
 
  Criar um usuário associado ao SAMBA "COM" suporte ao SSH:
 
-        user-smb USUÁRIO --ssh-on
+        user-smb USUÁRIO --ssh
 
  Listar usuários associados ao compartilhamento SAMBA:
 
