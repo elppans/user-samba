@@ -1,0 +1,274 @@
+#!/bin/bash
+
+## Autor do Script Marcelo Klumpp (Elppans Dark Elven)
+# Versão 2.4 do Script adduser-smb
+
+USUARIO="$1"
+
+#HLP
+if [ -z "$USUARIO" ]; then
+echo -e "Digite $0 --help|-h!"
+exit 0
+else
+case $1 in
+        --help|-h)
+        echo -e "
+$0.
+
+Comando para \"criar/adicionar\" um usuário ao Sistema E/OU ao compartilhamento SAMBA.
+Com este comando não é necessário que o usuário para o SAMBA seja o padrão do sistema
+Pode-se usar qualquer outro nome e senha, para maior segurança, (recomendável)
+Mas também pode-se \"adicionar/remover\" um usuário já existente ao SAMBA.
+
+Parâmetros:
+        --help|-h       Este menú de ajuda.
+	--list|-l	Lista usuários asociados ao SAMBA.
+	--remove|-rm	Remove um usuário específico do SAMBA e/ou Sistema.
+        --ssh-on        para que o usuário criado tenha suporte para uso com o ssh.
+                        Se omitido, será criado um usuário sem suporte ao ssh
+Exemplos:
+
+ Criar um usuário associado ao SAMBA \"SEM\" suporte ao SSH (Recomendável):
+
+        user-smb USUARIO
+
+ Criar um usuário associado ao SAMBA \"COM\" suporte ao SSH:
+
+        user-smb USUARIO --ssh-on
+
+ Listar usuários associados ao compartilhamento SAMBA:
+
+	user-smb --list
+
+ Remover um usuário específico do SAMBA e/ou Sistema:
+
+	user-smb USUARIO --remove
+"
+        exit 0
+esac
+fi
+#HLP
+
+#UID0
+if [ "$(id -u)" != "0" ]; then
+        echo "O comando deve ser executado como super usuario!"
+        exit 0
+fi
+#UID0
+
+#REMOVEUSER
+case $2 in
+	--remove|-rm)
+#SMBULIST
+PAR3=$(pdbedit -L "$USUARIO" | cut -d ":" -f "1")
+if [ "$USUARIO" = "$PAR3" ];then
+##GRPSMB
+GR1=`grep plugdev /etc/group | egrep $USUARIO`
+GR2=`grep sambashare /etc/group | egrep $USUARIO`
+
+if [ $GR1 ];then
+        gpasswd -d $USUARIO plugdev
+fi
+
+if [ $GR2 ];then
+        gpasswd -d $USUARIO sambashare
+fi
+##GRPSMB
+	smbpasswd -x $USUARIO
+#ExistSMB
+if id -u "$1" > /dev/null 2>&1; then
+        echo "Deseja também remover o usuário \"$1\" do sistema?"
+        echo "Sim (S) ou Não (N)"
+read opcao
+case $opcao in
+        Sim|sim|S|s)
+	userdel $USUARIO
+	exit 0
+;;
+        Não|não|N|n)
+        echo -e "O usuário \"$1\" foi mantido no sistema!"
+        exit 0
+;;
+esac
+else
+	echo -e "Usuário \"$1\" não existe no sistema,"
+	echo -e "Não há nada a ser feito..."
+	exit 0
+fi
+#ExistSMB
+else
+	echo -e "Usuário \"$1\" não existe ao compartilhamento SAMBA..."
+#ExistSMB
+if id -u "$1" > /dev/null 2>&1; then
+        echo "Deseja remover o usuário \"$1\" do sistema?"
+        echo "Sim (S) ou Não (N)"
+read opcao
+case $opcao in
+        Sim|sim|S|s)
+	userdel $USUARIO
+	exit 0
+;;
+        Não|não|N|n)
+        echo -e "O usuário \"$1\" foi mantido no sistema!"
+        exit 0
+;;
+esac
+else
+	echo -e "Usuário \"$1\" não existe no sistema,"
+	echo -e "Não há nada a ser feito..."
+	exit 0
+fi
+#ExistSMB
+fi
+#SMBULIST
+;;
+esac
+#REMOVEUSER
+
+#USRLISTSMB
+case $1 in
+	--list|-l)
+	echo -e "Listar usuários associados ao compartilhamento SAMBA..."
+	read -t 2
+	pdbedit -L | cut -d ":" -f "1"
+	exit 0
+;;
+esac
+case $2 in
+	--list|-l)
+	echo -e "Listar se o usuário \"$1\" está associado ao compartilhamento SAMBA..."
+	read -t 2
+	pdbedit -L "$1" | cut -d ":" -f "1"
+	exit 0
+;;
+esac
+#USRLISTSMB
+
+#ExistSMB
+if id -u "$1" > /dev/null 2>&1; then
+        echo "Foi especificado um usuário já existente no sistema,"
+        echo "Deseja apenas adicionar este usuário ao SAMBA?"
+        echo "Responda com Sim ou Não (S/N)"
+read opcao
+case $opcao in
+        Sim|sim|S|s)
+# Adiciona o usuário ao grupo "plugdev" e/ou sambashare (É necessário, senão não funciona)
+##GRPSMB
+GR1=`grep plugdev /etc/group | egrep $USUARIO`
+GR2=`grep sambashare /etc/group | egrep $USUARIO`
+
+if [ $GR1 ];then
+	echo "Usuário $1 já existe no grupo plugdev..."
+else
+        gpasswd -a $USUARIO plugdev
+fi
+
+if [ $GR2 ];then
+	echo "Usuário $1 já existe no grupo sambashare..."
+else
+        gpasswd -a $USUARIO sambashare
+fi
+##GRPSMB
+
+# Adiciona o usuário ao samba
+#SMBULIST1
+PAR3=$(pdbedit -L "$USUARIO" | cut -d ":" -f "1")
+if [ "$USUARIO" = "$PAR3" ];then
+	echo -e "Usuario $1 já existe no compartilhamento SAMBA!"
+	exit 0
+
+else
+	echo -e "Ok, adicionando o usuário \"$1\" ao compartilhamento SAMBA..."
+        smbpasswd -a $USUARIO
+fi
+#SMBULIST1
+        exit 0
+;;
+        Não|não|N|n)
+        echo -e "Deve executar o comando novamente especificando um outro nome de usuário..."
+        exit 0
+;;
+esac
+fi
+#ExistSMB
+#PAR2 nulo
+if [ -z "$2" ];then
+# Adicionando o usuário (sem login) no sistema
+        adduser --system --no-create-home --disabled-login --quiet $USUARIO
+
+# Adiciona o usuário ao grupo "plugdev" e/ou sambashare (É necessário, senão não funciona)
+##GRPSMB
+GR1=`grep plugdev /etc/group | egrep $USUARIO`
+GR2=`grep sambashare /etc/group | egrep $USUARIO`
+
+if [ $GR1 ];then
+	echo "Usuário $1 já existe no grupo plugdev..."
+else
+        gpasswd -a $USUARIO plugdev
+fi
+
+if [ $GR2 ];then
+	echo "Usuário $1 já existe no grupo sambashare..."
+else
+        gpasswd -a $USUARIO sambashare
+fi
+##GRPSMB
+
+# Adiciona o usuário ao samba
+#SMBULIST
+PAR3=$(pdbedit -L "$USUARIO" | cut -d ":" -f "1")
+if [ "$USUARIO" = "$PAR3" ];then
+	echo -e "Usuario $1 já existe!"
+	exit 0
+
+else
+	echo -e "Ok, adicionando o usuário \"$1\" ao compartilhamento SAMBA..."
+        smbpasswd -a $USUARIO
+fi
+#SMBULIST
+else
+#ssh
+if [ "$2" = "--ssh" ];then
+# Adicionando o usuário (sem login) no sistema (Suporta login via ssh)
+        adduser --system --no-create-home --disabled-password --quiet $USUARIO
+
+# Adiciona o usuário ao grupo "plugdev" e/ou sambashare (É necessário, senão não funciona)
+##GRPSMB
+GR1=`grep plugdev /etc/group | egrep $USUARIO`
+GR2=`grep sambashare /etc/group | egrep $USUARIO`
+
+if [ $GR1 ];then
+	echo "Usuário $1 já existe no grupo plugdev..."
+else
+        gpasswd -a $USUARIO plugdev
+fi
+
+if [ $GR2 ];then
+	echo "Usuário $1 já existe no grupo sambashare..."
+else
+        gpasswd -a $USUARIO sambashare
+fi
+##GRPSMB
+
+# Adiciona o usuário ao samba
+#SMBULIST
+PAR3=$(pdbedit -L "$USUARIO" | cut -d ":" -f "1")
+if [ "$USUARIO" = "$PAR3" ];then
+	echo -e "Usuario $1 já existe!"
+	exit 0
+
+else
+	echo -e "Ok, adicionando o usuário \"$1\" ao compartilhamento SAMBA..."
+        smbpasswd -a $USUARIO
+fi
+#SMBULIST
+#ERRPAR
+else
+        echo -e "Parâmetro errado...\nDigite $0 --help|-h para ver as opções!"
+        exit 0
+#ERRPAR
+fi
+#ssh
+fi
+#PAR2 nulo
+
